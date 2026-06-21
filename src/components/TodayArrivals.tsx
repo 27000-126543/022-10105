@@ -99,7 +99,7 @@ export default function TodayArrivals() {
 
   const quickActions: { label: string; status?: CustomerStatus; action?: (c: Customer) => void; color: string }[] = [
     { label: '皮肤检测完成', action: (c) => markSkinTestDone(c.id), color: 'var(--accent-info)' },
-    { label: '带去拍照室', status: 'photo_room', action: (c) => { markPhotoDone(c.id); updateCustomerStatus(c.id, 'photo_room') }, color: 'var(--accent-purple)' },
+    { label: '带去拍照室', status: 'photo_room', color: 'var(--accent-purple)' },
     { label: '带去面诊室', status: 'consultation', color: 'var(--accent-success)' },
     { label: '转注射咨询', status: 'injection_consult', color: 'var(--accent-warning)' },
     { label: '临时离开', action: (c) => markTemporaryLeave(c.id), color: 'var(--text-muted)' },

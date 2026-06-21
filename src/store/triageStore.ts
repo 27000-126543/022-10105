@@ -163,24 +163,37 @@ export const useTriageStore = create<TriageState>((set, get) => ({
   },
 
   reorderCustomers: (fromIndex, toIndex, zone) => {
-    let customers = [...get().customers]
+    const allCustomers = [...get().customers]
 
+    let targetList: Customer[]
     if (zone) {
-      const zoneCustomers = customers
+      targetList = allCustomers
         .filter((c) => c.zone === zone && c.status !== 'completed' && c.status !== 'cancelled')
         .sort((a, b) => a.queueOrder - b.queueOrder)
-
-      if (fromIndex < 0 || fromIndex >= zoneCustomers.length || toIndex < 0 || toIndex >= zoneCustomers.length) return
-
-      const [removed] = zoneCustomers.splice(fromIndex, 1)
-      zoneCustomers.splice(toIndex, 0, removed)
-
-      zoneCustomers.forEach((c, idx) => {
-        c.queueOrder = idx + 1
-      })
+    } else {
+      targetList = allCustomers
+        .filter((c) => c.status !== 'completed' && c.status !== 'cancelled')
+        .sort((a, b) => a.queueOrder - b.queueOrder)
     }
 
-    set({ customers })
+    if (fromIndex < 0 || fromIndex >= targetList.length || toIndex < 0 || toIndex >= targetList.length) return
+    if (fromIndex === toIndex) return
+
+    const [removed] = targetList.splice(fromIndex, 1)
+    targetList.splice(toIndex, 0, removed)
+
+    const idToNewOrder = new Map<string, number>()
+    targetList.forEach((c, idx) => idToNewOrder.set(c.id, idx + 1))
+
+    const updatedCustomers = allCustomers.map((c) => {
+      const newOrder = idToNewOrder.get(c.id)
+      if (newOrder !== undefined && newOrder !== c.queueOrder) {
+        return { ...c, queueOrder: newOrder }
+      }
+      return c
+    })
+
+    set({ customers: updatedCustomers })
   },
 
   resolveException: (id, notes) => {

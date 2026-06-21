@@ -27,11 +27,19 @@ export default function ExceptionPanel() {
   const setActivePanel = useTriageStore((s) => s.setActivePanel)
   const resolveException = useTriageStore((s) => s.resolveException)
   const addException = useTriageStore((s) => s.addException)
+  const addCustomer = useTriageStore((s) => s.addCustomer)
   const customers = useTriageStore((s) => s.customers)
 
   const [filter, setFilter] = useState<FilterType>('all')
   const [resolveInput, setResolveInput] = useState<Record<string, string>>({})
   const [showQuickReport, setShowQuickReport] = useState(false)
+  const [showDupModal, setShowDupModal] = useState(false)
+
+  const [dupName, setDupName] = useState('')
+  const [dupPhone, setDupPhone] = useState('')
+  const [dupDetails, setDupDetails] = useState('')
+  const [dupError, setDupError] = useState('')
+  const [dupMatched, setDupMatched] = useState<any>(null)
 
   const filtered = exceptions.filter((e) => {
     if (filter === 'all') return true
@@ -125,6 +133,12 @@ export default function ExceptionPanel() {
               style={styles.quickReportBtn}
               onClick={() => {
                 setShowQuickReport(false)
+                setShowDupModal(true)
+                setDupName('')
+                setDupPhone('')
+                setDupDetails('')
+                setDupError('')
+                setDupMatched(null)
               }}
             >
               🔄 重复签到
@@ -320,8 +334,250 @@ export default function ExceptionPanel() {
           </div>
         </div>
       </div>
+
+      {showDupModal && (
+        <div style={dupStyles.overlay} onClick={() => setShowDupModal(false)}>
+          <div style={dupStyles.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={dupStyles.header}>
+              <h3 style={dupStyles.title}>🔄 上报重复签到</h3>
+              <button onClick={() => setShowDupModal(false)} style={dupStyles.closeBtn}>✕</button>
+            </div>
+
+            <div style={dupStyles.body}>
+              {dupError && <div style={dupStyles.errorBox}>⚠️ {dupError}</div>}
+
+              <div style={dupStyles.formGroup}>
+                <label style={dupStyles.label}>顾客姓名 *</label>
+                <input
+                  style={dupStyles.input}
+                  placeholder="请输入顾客姓名"
+                  value={dupName}
+                  onChange={(e) => {
+                    setDupName(e.target.value)
+                    setDupError('')
+                    const m = customers.find((c) => c.name === e.target.value.trim())
+                    setDupMatched(m || null)
+                  }}
+                />
+              </div>
+
+              <div style={dupStyles.formGroup}>
+                <label style={dupStyles.label}>联系电话 *</label>
+                <input
+                  style={dupStyles.input}
+                  placeholder="请输入手机号用于匹配"
+                  value={dupPhone}
+                  maxLength={11}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '')
+                    setDupPhone(v)
+                    setDupError('')
+                    if (v.length >= 7) {
+                      const m = customers.find((c) => c.phone.includes(v))
+                      setDupMatched(m || null)
+                    } else {
+                      setDupMatched(null)
+                    }
+                  }}
+                />
+              </div>
+
+              {dupMatched && (
+                <div style={dupStyles.matchBox}>
+                  <div style={dupStyles.matchTitle}>✅ 系统匹配到已签到顾客：</div>
+                  <div style={dupStyles.matchRow}>
+                    <span style={dupStyles.matchName}>{dupMatched.name}</span>
+                    <span style={dupStyles.matchPhone}>{dupMatched.phone}</span>
+                    <span style={{
+                      ...dupStyles.matchBadge,
+                      background: dupMatched.status === 'waiting' ? '#6366f130' : '#10b98130',
+                      color: dupMatched.status === 'waiting' ? '#6366f1' : '#10b981',
+                    }}>
+                      {dupMatched.status === 'waiting' ? '候诊中' : '服务中'}
+                    </span>
+                  </div>
+                  <div style={dupStyles.matchSub}>
+                    到店时间：{new Date(dupMatched.arrivalTime).toLocaleTimeString('zh-CN', {hour12: false})}
+                    {' · '}候诊区：{dupMatched.zone}区{dupMatched.floor}楼
+                    {' · '}队列号：{dupMatched.queueOrder}
+                  </div>
+                </div>
+              )}
+
+              <div style={dupStyles.formGroup}>
+                <label style={dupStyles.label}>异常详情备注</label>
+                <textarea
+                  style={dupStyles.textarea}
+                  placeholder="例如：顾客刚刚在1楼签过到，又到2楼护士站重复签到，顾客姓名正确"
+                  rows={3}
+                  value={dupDetails}
+                  onChange={(e) => setDupDetails(e.target.value)}
+                />
+              </div>
+
+              <div style={dupStyles.hintBox}>
+                💡 上报后将在「待处理」列表生成异常，其他岗位可同步看到，并可备注处理、标记已解决
+              </div>
+            </div>
+
+            <div style={dupStyles.footer}>
+              <button style={dupStyles.cancelBtn} onClick={() => setShowDupModal(false)}>
+                取消
+              </button>
+              <button
+                style={dupStyles.submitBtn}
+                onClick={() => {
+                  if (!dupName.trim()) { setDupError('请输入顾客姓名'); return }
+                  if (!dupPhone.trim() || dupPhone.length < 7) { setDupError('请输入有效的联系电话'); return }
+
+                  let targetCustomer = dupMatched
+                  let targetName = dupName.trim()
+                  let targetId = ''
+
+                  if (targetCustomer) {
+                    targetId = targetCustomer.id
+                    targetName = targetCustomer.name
+                  } else {
+                    targetId = 'temp_' + Date.now()
+                  }
+
+                  addException({
+                    type: 'duplicate_checkin',
+                    customerId: targetId,
+                    customerName: targetName,
+                    details: dupDetails.trim() || '顾客疑似重复签到，请核实处理',
+                    notes: '联系方式：' + dupPhone,
+                  })
+                  setShowDupModal(false)
+                }}
+              >
+                ✅ 确认上报异常
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+const dupStyles: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 200,
+  },
+  modal: {
+    width: '520px',
+    background: 'var(--bg-secondary)',
+    borderRadius: '16px',
+    boxShadow: '0 24px 48px rgba(0,0,0,0.4)',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '18px 24px',
+    borderBottom: '1px solid var(--border-color)',
+  },
+  title: { fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)' },
+  closeBtn: {
+    width: '32px', height: '32px', borderRadius: '8px',
+    background: 'var(--bg-tertiary)', color: 'var(--text-muted)',
+    fontSize: '16px',
+  },
+  body: {
+    padding: '24px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+    maxHeight: '60vh',
+    overflowY: 'auto',
+  },
+  errorBox: {
+    padding: '10px 14px',
+    background: '#ef444420',
+    border: '1px solid #ef444450',
+    borderRadius: '8px',
+    fontSize: '13px',
+    color: '#ef4444',
+  },
+  formGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  label: { fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' },
+  input: {
+    padding: '11px 14px',
+    background: 'var(--bg-primary)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '8px',
+    fontSize: '14px',
+    color: 'var(--text-primary)',
+  },
+  textarea: {
+    padding: '11px 14px',
+    background: 'var(--bg-primary)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '8px',
+    fontSize: '13px',
+    color: 'var(--text-primary)',
+    resize: 'none',
+    fontFamily: 'inherit',
+  },
+  matchBox: {
+    padding: '14px',
+    background: '#10b98115',
+    border: '1px solid #10b98140',
+    borderRadius: '10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  matchTitle: { fontSize: '13px', color: '#10b981', fontWeight: 600 },
+  matchRow: { display: 'flex', alignItems: 'center', gap: '12px' },
+  matchName: { fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' },
+  matchPhone: { fontSize: '13px', color: 'var(--text-muted)' },
+  matchBadge: { padding: '3px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 },
+  matchSub: { fontSize: '12px', color: 'var(--text-muted)' },
+  hintBox: {
+    padding: '10px 14px',
+    background: 'var(--bg-primary)',
+    borderRadius: '8px',
+    fontSize: '12px',
+    color: 'var(--text-muted)',
+    lineHeight: 1.6,
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    padding: '16px 24px',
+    borderTop: '1px solid var(--border-color)',
+  },
+  cancelBtn: {
+    padding: '10px 22px',
+    background: 'var(--bg-tertiary)',
+    color: 'var(--text-secondary)',
+    borderRadius: '8px',
+    fontSize: '14px',
+  },
+  submitBtn: {
+    padding: '10px 26px',
+    background: 'var(--accent-primary)',
+    color: 'white',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: 600,
+  },
 }
 
 const styles: Record<string, React.CSSProperties> = {

@@ -2,12 +2,14 @@
   "name": "clinic-triage-desktop",
   "version": "1.0.0",
   "description": "医美初诊导诊桌面客户端",
-  "main": "dist-electron/main.js",
+  "main": "electron/main.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev-runner.js",
+    "dev:web": "vite",
     "build": "tsc && vite build && electron-builder",
     "preview": "vite preview",
-    "start": "electron ."
+    "start": "electron .",
+    "electron:start": "electron ."
   },
   "dependencies": {
     "react": "^18.2.0",
