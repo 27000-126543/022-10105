@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import type { Room } from '../types'
 import { useTriageStore } from '../store/triageStore'
-import { getZoneColor } from '../utils/format'
+import {
+  getZoneColor,
+  getCustomerStatusLabel,
+  getCustomerStatusColor,
+  getCustomerTypeColor,
+  getCustomerTypeLabel,
+  generateQueueNumber,
+} from '../utils/format'
 
 const roomTypeLabels: Record<Room['type'], string> = {
   skin_test: '皮肤检测',
@@ -10,6 +17,15 @@ const roomTypeLabels: Record<Room['type'], string> = {
   injection: '注射咨询',
   treatment: '治疗室',
   rest: '休息区',
+}
+
+const roomTypeToStatus: Record<Room['type'], string> = {
+  skin_test: '皮肤检测',
+  photo: '拍照中',
+  consultation: '面诊中',
+  injection: '注射咨询',
+  treatment: '治疗中',
+  rest: '候诊中',
 }
 
 const statusLabels: Record<Room['status'], string> = {
@@ -29,7 +45,11 @@ const statusColors: Record<Room['status'], string> = {
 export default function RoomNavigation() {
   const rooms = useTriageStore((s) => s.rooms)
   const customers = useTriageStore((s) => s.customers)
+  const selectCustomer = useTriageStore((s) => s.selectCustomer)
+  const setActivePanel = useTriageStore((s) => s.setActivePanel)
+  const assignCustomerToRoom = useTriageStore((s) => s.assignCustomerToRoom)
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all')
+  const [assigningRoomId, setAssigningRoomId] = useState<string | null>(null)
 
   const floors = [1, 2, 3]
 
@@ -45,11 +65,24 @@ export default function RoomNavigation() {
     return customers.find((c) => c.roomId === roomId)
   }
 
+  const assignableCustomers = customers.filter(
+    (c) =>
+      !c.roomId &&
+      c.status !== 'completed' &&
+      c.status !== 'cancelled' &&
+      (c.status === 'waiting' || c.status === 'called')
+  )
+
   const stats = {
     total: rooms.length,
     available: rooms.filter((r) => r.status === 'available').length,
     occupied: rooms.filter((r) => r.status === 'occupied').length,
     cleaning: rooms.filter((r) => r.status === 'cleaning').length,
+  }
+
+  const handleAssign = (roomId: string, customerId: string) => {
+    assignCustomerToRoom(customerId, roomId)
+    setAssigningRoomId(null)
   }
 
   return (
@@ -130,13 +163,13 @@ export default function RoomNavigation() {
                       <div style={styles.roomGrid}>
                         {zoneRooms.map((room) => {
                           const occupant = getOccupant(room.id)
+                          const isAssigning = assigningRoomId === room.id
                           return (
                             <div
                               key={room.id}
                               style={{
                                 ...styles.roomCard,
                                 borderTop: `3px solid ${statusColors[room.status]}`,
-                                ...(room.status === 'available' ? styles.roomAvailable : {}),
                               }}
                             >
                               <div style={styles.roomHeader}>
@@ -153,20 +186,81 @@ export default function RoomNavigation() {
                               </div>
                               <div style={styles.roomType}>
                                 {roomTypeLabels[room.type]}
+                                {room.status === 'available' && (
+                                  <span style={styles.roomActionHint}>
+                                    → {roomTypeToStatus[room.type]}
+                                  </span>
+                                )}
                               </div>
                               {occupant ? (
-                                <div style={styles.occupant}>
+                                <div
+                                  style={styles.occupant}
+                                  onClick={() => {
+                                    selectCustomer(occupant.id)
+                                    setActivePanel('detail')
+                                  }}
+                                >
                                   <span style={styles.occupantAvatar}>
                                     {occupant.name.slice(-1)}
                                   </span>
                                   <div>
                                     <div style={styles.occupantName}>{occupant.name}</div>
-                                    <div style={styles.occupantSub}>进行中</div>
+                                    <div style={{
+                                      ...styles.occupantStatus,
+                                      color: getCustomerStatusColor(occupant.status),
+                                    }}>
+                                      {getCustomerStatusLabel(occupant.status)}
+                                    </div>
                                   </div>
+                                </div>
+                              ) : room.status === 'available' ? (
+                                <div>
+                                  {isAssigning ? (
+                                    <div style={styles.assignPanel}>
+                                      <div style={styles.assignTitle}>选择顾客安排到该房间</div>
+                                      <div style={styles.assignList}>
+                                        {assignableCustomers.length === 0 ? (
+                                          <div style={styles.assignEmpty}>暂无可安排的候诊顾客</div>
+                                        ) : (
+                                          assignableCustomers.map((c) => (
+                                            <button
+                                              key={c.id}
+                                              style={styles.assignItem}
+                                              onClick={() => handleAssign(room.id, c.id)}
+                                            >
+                                              <span style={{
+                                                ...styles.assignItemType,
+                                                background: getCustomerTypeColor(c.type),
+                                              }}>
+                                                {getCustomerTypeLabel(c.type)}
+                                              </span>
+                                              <span style={styles.assignItemName}>{c.name}</span>
+                                              <span style={styles.assignItemNum}>
+                                                {generateQueueNumber(c.type, c.queueOrder)}
+                                              </span>
+                                            </button>
+                                          ))
+                                        )}
+                                      </div>
+                                      <button
+                                        style={styles.assignCancel}
+                                        onClick={() => setAssigningRoomId(null)}
+                                      >
+                                        取消
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      style={styles.assignBtn}
+                                      onClick={() => setAssigningRoomId(room.id)}
+                                    >
+                                      👤 安排顾客
+                                    </button>
+                                  )}
                                 </div>
                               ) : (
                                 <div style={styles.emptySlot}>
-                                  {room.status === 'available' ? '可使用' : statusLabels[room.status]}
+                                  {statusLabels[room.status]}
                                 </div>
                               )}
                             </div>
@@ -350,9 +444,6 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: '8px',
   },
-  roomAvailable: {
-    background: 'var(--bg-primary)',
-  },
   roomHeader: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -372,6 +463,14 @@ const styles: Record<string, React.CSSProperties> = {
   roomType: {
     fontSize: '12px',
     color: 'var(--text-muted)',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  roomActionHint: {
+    fontSize: '11px',
+    color: '#10b981',
+    fontWeight: 600,
   },
   occupant: {
     display: 'flex',
@@ -381,6 +480,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--accent-primary)10',
     borderRadius: '6px',
     marginTop: '4px',
+    cursor: 'pointer',
   },
   occupantAvatar: {
     width: '28px',
@@ -399,9 +499,90 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     color: 'var(--text-primary)',
   },
-  occupantSub: {
+  occupantStatus: {
     fontSize: '11px',
+    fontWeight: 500,
+  },
+  assignBtn: {
+    marginTop: '4px',
+    padding: '8px 12px',
+    background: '#10b98120',
+    border: '1px dashed #10b981',
+    borderRadius: '6px',
+    fontSize: '12px',
+    color: '#10b981',
+    fontWeight: 600,
+    cursor: 'pointer',
+    width: '100%',
+    textAlign: 'center',
+  },
+  assignPanel: {
+    marginTop: '4px',
+    padding: '10px',
+    background: 'var(--bg-secondary)',
+    borderRadius: '8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  assignTitle: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+  },
+  assignList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    maxHeight: '160px',
+    overflowY: 'auto',
+  },
+  assignEmpty: {
+    fontSize: '12px',
     color: 'var(--text-muted)',
+    textAlign: 'center',
+    padding: '8px',
+  },
+  assignItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 10px',
+    background: 'var(--bg-primary)',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    border: 'none',
+    width: '100%',
+    textAlign: 'left',
+  },
+  assignItemType: {
+    padding: '2px 6px',
+    borderRadius: '3px',
+    fontSize: '10px',
+    color: 'white',
+    fontWeight: 600,
+  },
+  assignItemName: {
+    flex: 1,
+    fontSize: '13px',
+    fontWeight: 500,
+    color: 'var(--text-primary)',
+  },
+  assignItemNum: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: 'var(--text-muted)',
+  },
+  assignCancel: {
+    padding: '6px 12px',
+    background: 'var(--bg-tertiary)',
+    borderRadius: '6px',
+    fontSize: '12px',
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+    border: 'none',
+    width: '100%',
+    textAlign: 'center',
   },
   emptySlot: {
     padding: '8px 10px',

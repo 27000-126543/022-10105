@@ -25,6 +25,8 @@ interface TriageState {
   markPhotoDone: (id: string) => void
   markTemporaryLeave: (id: string) => void
   returnFromLeave: (id: string) => void
+  callCustomer: (id: string) => void
+  assignCustomerToRoom: (customerId: string, roomId: string) => void
   reorderCustomers: (fromIndex: number, toIndex: number, context?: { zone?: WaitingZone; customerIds?: string[] }) => void
 
   resolveException: (id: string, notes?: string) => void
@@ -167,47 +169,136 @@ export const useTriageStore = create<TriageState>((set, get) => ({
     })
   },
 
-  reorderCustomers: (fromIndex, toIndex, context) => {
-    const allCustomers = [...get().customers]
-    const zone = context?.zone
-    const customerIds = context?.customerIds
+  callCustomer: (id) => {
+    const customer = get().customers.find((c) => c.id === id)
+    if (!customer) return
+    if (customer.status !== 'waiting') return
+    get().updateCustomerStatus(id, 'called')
+  },
 
-    let targetList: Customer[]
+  assignCustomerToRoom: (customerId, roomId) => {
+    const customer = get().customers.find((c) => c.id === customerId)
+    const room = get().rooms.find((r) => r.id === roomId)
+    if (!customer || !room) return
+    if (room.status !== 'available') return
 
-    if (customerIds && customerIds.length > 0) {
-      targetList = customerIds
-        .map((id) => allCustomers.find((c) => c.id === id))
-        .filter((c): c is Customer =>
-          !!c && c.status !== 'completed' && c.status !== 'cancelled'
-        )
-    } else if (zone) {
-      targetList = allCustomers
-        .filter((c) => c.zone === zone && c.status !== 'completed' && c.status !== 'cancelled')
-        .sort((a, b) => a.queueOrder - b.queueOrder)
-    } else {
-      targetList = allCustomers
-        .filter((c) => c.status !== 'completed' && c.status !== 'cancelled')
-        .sort((a, b) => a.queueOrder - b.queueOrder)
+    const statusMap: Record<string, CustomerStatus> = {
+      skin_test: 'skin_test',
+      photo: 'photo_room',
+      consultation: 'consultation',
+      injection: 'injection_consult',
+      treatment: 'treatment',
+      rest: 'waiting',
     }
 
-    if (fromIndex < 0 || fromIndex >= targetList.length || toIndex < 0 || toIndex >= targetList.length) return
-    if (fromIndex === toIndex) return
+    const newStatus = statusMap[room.type] || 'waiting'
 
-    const [removed] = targetList.splice(fromIndex, 1)
-    targetList.splice(toIndex, 0, removed)
-
-    const idToNewOrder = new Map<string, number>()
-    targetList.forEach((c, idx) => idToNewOrder.set(c.id, idx + 1))
-
-    const updatedCustomers = allCustomers.map((c) => {
-      const newOrder = idToNewOrder.get(c.id)
-      if (newOrder !== undefined && newOrder !== c.queueOrder) {
-        return { ...c, queueOrder: newOrder }
-      }
-      return c
+    get().updateCustomer(customerId, {
+      status: newStatus,
+      roomId: roomId,
+      zone: room.zone,
+      floor: room.floor,
     })
 
-    set({ customers: updatedCustomers })
+    set({
+      rooms: get().rooms.map((r) =>
+        r.id === roomId ? { ...r, status: 'occupied' as const, occupiedBy: customerId } : r
+      ),
+    })
+  },
+
+  reorderCustomers: (fromIndex, toIndex, context) => {
+    const allCustomers = get().customers
+    const customerIds = context?.customerIds
+
+    const globalList = allCustomers
+      .filter((c) => c.status !== 'completed' && c.status !== 'cancelled')
+      .sort((a, b) => a.queueOrder - b.queueOrder)
+
+    if (globalList.length === 0) return
+
+    if (customerIds && customerIds.length > 0) {
+      const draggedId = customerIds[fromIndex]
+      const targetId = customerIds[toIndex]
+
+      if (!draggedId || !targetId || draggedId === targetId) return
+
+      const dragGlobalIdx = globalList.findIndex((c) => c.id === draggedId)
+      let targetGlobalIdx = globalList.findIndex((c) => c.id === targetId)
+
+      if (dragGlobalIdx === -1 || targetGlobalIdx === -1) return
+
+      const [removed] = globalList.splice(dragGlobalIdx, 1)
+
+      targetGlobalIdx = globalList.findIndex((c) => c.id === targetId)
+      if (targetGlobalIdx === -1) targetGlobalIdx = globalList.length
+
+      globalList.splice(targetGlobalIdx, 0, removed)
+
+      const rangeStart = Math.min(dragGlobalIdx, targetGlobalIdx)
+      const rangeEnd = Math.max(dragGlobalIdx, targetGlobalIdx)
+
+      const updates = new Map<string, number>()
+      for (let i = rangeStart; i <= rangeEnd && i < globalList.length; i++) {
+        const c = globalList[i]
+        const newOrder = i + 1
+        if (c.queueOrder !== newOrder) {
+          updates.set(c.id, newOrder)
+        }
+      }
+
+      const updatedCustomers = allCustomers.map((c) => {
+        const newOrder = updates.get(c.id)
+        if (newOrder !== undefined) return { ...c, queueOrder: newOrder }
+        return c
+      })
+
+      set({ customers: updatedCustomers })
+    } else if (context?.zone) {
+      const zone = context.zone
+      const zoneList = globalList.filter((c) => c.zone === zone)
+
+      if (fromIndex < 0 || fromIndex >= zoneList.length || toIndex < 0 || toIndex >= zoneList.length) return
+      if (fromIndex === toIndex) return
+
+      const dragGlobalIdx = globalList.findIndex((c) => c.id === zoneList[fromIndex].id)
+      let targetGlobalIdx = globalList.findIndex((c) => c.id === zoneList[toIndex].id)
+
+      const [removed] = globalList.splice(dragGlobalIdx, 1)
+      targetGlobalIdx = globalList.findIndex((c) => c.id === zoneList[toIndex].id)
+      if (targetGlobalIdx === -1) targetGlobalIdx = globalList.length
+      globalList.splice(targetGlobalIdx, 0, removed)
+
+      const rangeStart = Math.min(dragGlobalIdx, targetGlobalIdx)
+      const rangeEnd = Math.max(dragGlobalIdx, targetGlobalIdx)
+
+      const updates = new Map<string, number>()
+      for (let i = rangeStart; i <= rangeEnd && i < globalList.length; i++) {
+        const c = globalList[i]
+        const newOrder = i + 1
+        if (c.queueOrder !== newOrder) updates.set(c.id, newOrder)
+      }
+
+      set({ customers: allCustomers.map((c) => updates.has(c.id) ? { ...c, queueOrder: updates.get(c.id)! } : c) })
+    } else {
+      if (fromIndex < 0 || fromIndex >= globalList.length || toIndex < 0 || toIndex >= globalList.length) return
+      if (fromIndex === toIndex) return
+
+      const [removed] = globalList.splice(fromIndex, 1)
+      globalList.splice(toIndex, 0, removed)
+
+      const rangeStart = Math.min(fromIndex, toIndex)
+      const rangeEnd = Math.max(fromIndex, toIndex)
+
+      const updates = new Map<string, number>()
+      for (let i = rangeStart; i <= rangeEnd; i++) {
+        const c = globalList[i]
+        const newOrder = i + 1
+        if (c.queueOrder !== newOrder) updates.set(c.id, newOrder)
+      }
+
+      set({ customers: allCustomers.map((c) => updates.has(c.id) ? { ...c, queueOrder: updates.get(c.id)! } : c) })
+    }
   },
 
   resolveException: (id, notes) => {

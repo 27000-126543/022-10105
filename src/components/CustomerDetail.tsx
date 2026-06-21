@@ -42,6 +42,7 @@ export default function CustomerDetail() {
 
   const customer = customers.find((c) => c.id === selectedCustomerId)
   const exception = selectedExceptionId ? getExceptionById(selectedExceptionId) : null
+  const linkedCustomer = exception ? customers.find((c) => c.id === exception.customerId) : null
 
   if (!customer && !exception) {
     return (
@@ -231,7 +232,7 @@ export default function CustomerDetail() {
 咨询师：${consultant?.name || '-'}
 医生：${doctor?.name || '-'}
 ====================================
-当前状态：${getCustomerStatusLabel(customer.status)}
+当前状态：${getCustomerStatusLabel(customer.status)}${customer.roomId ? '\n当前位置：' + rooms.find((r) => r.id === customer.roomId)?.name + ' ' + customer.floor + '楼' + customer.zone + '区' : ''}
 皮肤检测：${customer.hasSkinTest ? '已完成' : '未完成'}
 拍照：${customer.hasPhoto ? '已完成' : '未完成'}
 ====================================
@@ -317,6 +318,45 @@ export default function CustomerDetail() {
           ) : null}
         </div>
       </div>
+
+      {exception && (
+        <div style={styles.exceptionBanner}>
+          <div style={styles.exceptionBannerHeader}>
+            <span style={styles.exceptionBannerTitle}>🔄 关联异常：{exception.type === 'duplicate_checkin' ? '重复签到' : exception.type === 'timeout' ? '超时提醒' : exception.type === 'wrong_floor' ? '走错楼层' : '临时离开'}</span>
+            {exception.resolved ? (
+              <span style={{ ...styles.statusBadge, background: '#10b981', color: '#fff' }}>✅ 已处理</span>
+            ) : (
+              <span style={{ ...styles.statusBadge, background: '#ef4444', color: '#fff' }}>待处理</span>
+            )}
+          </div>
+          <div style={styles.exceptionBannerBody}>
+            {exception.details && <div style={styles.exceptionBannerDetail}>📝 {exception.details}</div>}
+            {exception.notes && <div style={styles.exceptionBannerNote}>💬 {exception.notes}</div>}
+            {exception.customerPhone && <div style={styles.exceptionBannerNote}>📞 联系方式：{exception.customerPhone}</div>}
+            <div style={styles.exceptionBannerTime}>上报时间：{formatDateTime(exception.createdAt)}{exception.resolvedAt && ` · 处理时间：${formatDateTime(exception.resolvedAt)}`}</div>
+          </div>
+          {!exception.resolved && (
+            <div style={styles.exceptionBannerActions}>
+              <textarea
+                style={styles.textarea}
+                placeholder="输入处理备注（选填）"
+                value={resolveNotes}
+                onChange={(e) => setResolveNotes(e.target.value)}
+                rows={2}
+              />
+              <button
+                onClick={() => {
+                  resolveException(exception.id, resolveNotes || '已核实处理')
+                  setResolveNotes('')
+                }}
+                style={{ ...styles.actionBtn, background: '#10b981', marginTop: '8px' }}
+              >
+                ✅ 确认处理完成
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={styles.statusBar}>
         <span style={styles.statusLabel}>当前状态：</span>
@@ -1121,5 +1161,45 @@ const styles: Record<string, React.CSSProperties> = {
   subInfo: {
     fontSize: '13px',
     color: 'var(--text-muted)',
+  },
+  exceptionBanner: {
+    padding: '14px 16px',
+    background: '#8b5cf615',
+    border: '1px solid #8b5cf640',
+    borderRadius: '10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  exceptionBannerHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  exceptionBannerTitle: {
+    fontSize: '14px',
+    fontWeight: 700,
+    color: '#8b5cf6',
+  },
+  exceptionBannerBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  exceptionBannerDetail: {
+    fontSize: '13px',
+    color: 'var(--text-secondary)',
+  },
+  exceptionBannerNote: {
+    fontSize: '13px',
+    color: 'var(--text-muted)',
+  },
+  exceptionBannerTime: {
+    fontSize: '11px',
+    color: 'var(--text-muted)',
+  },
+  exceptionBannerActions: {
+    display: 'flex',
+    flexDirection: 'column',
   },
 }

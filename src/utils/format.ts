@@ -44,6 +44,7 @@ export const getCustomerTypeColor = (type: CustomerType): string => {
 export const getCustomerStatusLabel = (status: CustomerStatus): string => {
   const map: Record<CustomerStatus, string> = {
     waiting: '候诊中',
+    called: '已叫号',
     skin_test: '皮肤检测',
     photo_room: '拍照中',
     consultation: '面诊中',
@@ -59,6 +60,7 @@ export const getCustomerStatusLabel = (status: CustomerStatus): string => {
 export const getCustomerStatusColor = (status: CustomerStatus): string => {
   const map: Record<CustomerStatus, string> = {
     waiting: '#6366f1',
+    called: '#f59e0b',
     skin_test: '#06b6d4',
     photo_room: '#8b5cf6',
     consultation: '#10b981',

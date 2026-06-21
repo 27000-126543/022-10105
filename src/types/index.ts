@@ -1,6 +1,7 @@
 export type CustomerType = 'first_visit' | 'revisit' | 'companion'
 export type CustomerStatus =
   | 'waiting'
+  | 'called'
   | 'skin_test'
   | 'photo_room'
   | 'consultation'

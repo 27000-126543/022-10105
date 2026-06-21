@@ -48,6 +48,13 @@ export default function ExceptionPanel() {
     if (filter === 'active') return !e.resolved
     if (filter === 'resolved') return e.resolved
     return e.type === filter
+  }).sort((a, b) => {
+    if (a.resolved && b.resolved) {
+      const timeA = a.resolvedAt ? new Date(a.resolvedAt).getTime() : 0
+      const timeB = b.resolvedAt ? new Date(b.resolvedAt).getTime() : 0
+      return timeB - timeA
+    }
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
 
   const activeCount = exceptions.filter((e) => !e.resolved).length
@@ -63,6 +70,9 @@ export default function ExceptionPanel() {
     const customer = customers.find((c) => c.id === customerId)
     if (customer) {
       selectCustomer(customerId)
+      if (exceptionId) {
+        useTriageStore.setState({ selectedExceptionId: exceptionId })
+      }
     } else if (exceptionId) {
       selectException(exceptionId)
     }
