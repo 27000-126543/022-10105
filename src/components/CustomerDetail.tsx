@@ -15,27 +15,35 @@ import {
 
 export default function CustomerDetail() {
   const selectedCustomerId = useTriageStore((s) => s.selectedCustomerId)
+  const selectedExceptionId = useTriageStore((s) => s.selectedExceptionId)
   const customers = useTriageStore((s) => s.customers)
+  const exceptions = useTriageStore((s) => s.exceptions)
   const staff = useTriageStore((s) => s.staff)
   const rooms = useTriageStore((s) => s.rooms)
   const selectCustomer = useTriageStore((s) => s.selectCustomer)
+  const selectException = useTriageStore((s) => s.selectException)
+  const setActivePanel = useTriageStore((s) => s.setActivePanel)
   const updateCustomer = useTriageStore((s) => s.updateCustomer)
   const updateCustomerStatus = useTriageStore((s) => s.updateCustomerStatus)
   const markSkinTestDone = useTriageStore((s) => s.markSkinTestDone)
   const markPhotoDone = useTriageStore((s) => s.markPhotoDone)
   const markTemporaryLeave = useTriageStore((s) => s.markTemporaryLeave)
   const returnFromLeave = useTriageStore((s) => s.returnFromLeave)
+  const resolveException = useTriageStore((s) => s.resolveException)
   const assignConsultant = useTriageStore((s) => s.assignConsultant)
   const assignDoctor = useTriageStore((s) => s.assignDoctor)
   const setCustomerZone = useTriageStore((s) => s.setCustomerZone)
   const getStaffById = useTriageStore((s) => s.getStaffById)
   const getRoomById = useTriageStore((s) => s.getRoomById)
+  const getExceptionById = useTriageStore((s) => s.getExceptionById)
 
+  const [resolveNotes, setResolveNotes] = useState('')
   const [activeTab, setActiveTab] = useState<'info' | 'timeline'>('info')
 
   const customer = customers.find((c) => c.id === selectedCustomerId)
+  const exception = selectedExceptionId ? getExceptionById(selectedExceptionId) : null
 
-  if (!customer) {
+  if (!customer && !exception) {
     return (
       <div style={styles.empty}>
         <div style={styles.emptyIcon}>👤</div>
@@ -64,6 +72,126 @@ export default function CustomerDetail() {
       </div>
     )
   }
+
+  if (!customer && exception) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.header}>
+          <div style={styles.headerLeft}>
+            <div style={{ ...styles.avatar, background: '#9ca3af' }}>
+              {exception.customerName.charAt(0)}
+            </div>
+            <div>
+              <div style={styles.nameRow}>
+                <span style={styles.name}>{exception.customerName}</span>
+                <span style={{ ...styles.typeBadge, background: '#f59e0b' }}>
+                  异常顾客
+                </span>
+                {exception.resolved && (
+                  <span style={{ ...styles.statusBadge, background: '#10b981', color: '#fff', marginLeft: '8px' }}>
+                    ✅ 已处理
+                  </span>
+                )}
+              </div>
+              <div style={styles.subInfo}>
+                {exception.customerPhone && <span>📞 {exception.customerPhone}</span>}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              selectException(null)
+              setActivePanel('exceptions')
+            }}
+            style={styles.backBtn}
+          >
+            ← 返回异常列表
+          </button>
+        </div>
+
+        <div style={styles.section}>
+          <div style={styles.sectionTitle}>📋 异常信息</div>
+          <div style={styles.infoGrid}>
+            <div style={styles.infoItem}>
+              <span style={styles.infoLabel}>异常类型</span>
+              <span style={{ ...styles.infoValue, color: '#ef4444', fontWeight: 600 }}>
+                重复签到
+              </span>
+            </div>
+            <div style={styles.infoItem}>
+              <span style={styles.infoLabel}>上报时间</span>
+              <span style={styles.infoValue}>{formatDateTime(exception.createdAt)}</span>
+            </div>
+            {exception.customerPhone && (
+              <div style={styles.infoItem}>
+                <span style={styles.infoLabel}>联系电话</span>
+                <span style={styles.infoValue}>{exception.customerPhone}</span>
+              </div>
+            )}
+            {exception.notes && (
+              <div style={{ ...styles.infoItem, gridColumn: 'span 2' }}>
+                <span style={styles.infoLabel}>异常备注</span>
+                <span style={styles.infoValue}>{exception.notes}</span>
+              </div>
+            )}
+            {exception.details && (
+              <div style={{ ...styles.infoItem, gridColumn: 'span 2' }}>
+                <span style={styles.infoLabel}>详细说明</span>
+                <span style={styles.infoValue}>{exception.details}</span>
+              </div>
+            )}
+            {exception.resolvedAt && (
+              <div style={styles.infoItem}>
+                <span style={styles.infoLabel}>处理时间</span>
+                <span style={styles.infoValue}>{formatDateTime(exception.resolvedAt)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {!exception.resolved && (
+          <div style={styles.section}>
+            <div style={styles.sectionTitle}>✍️ 处理异常</div>
+            <textarea
+              style={styles.textarea}
+              placeholder="输入处理结果和备注（选填）"
+              value={resolveNotes}
+              onChange={(e) => setResolveNotes(e.target.value)}
+              rows={3}
+            />
+            <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+              <button
+                onClick={() => {
+                  resolveException(exception.id, resolveNotes || '已核实处理')
+                  setResolveNotes('')
+                }}
+                style={{ ...styles.actionBtn, background: '#10b981' }}
+              >
+                ✅ 确认处理完成
+              </button>
+              <button
+                onClick={() => {
+                  selectException(null)
+                  setActivePanel('exceptions')
+                }}
+                style={{ ...styles.actionBtn, background: '#6b7280' }}
+              >
+                稍后处理
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={styles.footer}>
+          <div style={styles.footerHint}>
+            💡 请核实顾客真实身份后再进行处理，避免服务错人
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!customer) return null
 
   const consultant = getStaffById(customer.consultantId || '')
   const doctor = getStaffById(customer.doctorId || '')
@@ -940,6 +1068,57 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '4px',
   },
   timelineTime: {
+    fontSize: '13px',
+    color: 'var(--text-muted)',
+  },
+  backBtn: {
+    padding: '8px 16px',
+    background: 'var(--bg-primary)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '8px',
+    fontSize: '13px',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+  },
+  statusBadge: {
+    padding: '4px 10px',
+    borderRadius: '12px',
+    fontSize: '12px',
+    fontWeight: 600,
+  },
+  textarea: {
+    width: '100%',
+    padding: '12px 14px',
+    background: 'var(--bg-primary)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '8px',
+    fontSize: '14px',
+    color: 'var(--text-primary)',
+    outline: 'none',
+    fontFamily: 'inherit',
+    resize: 'vertical',
+  },
+  actionBtn: {
+    flex: 1,
+    padding: '12px 20px',
+    border: 'none',
+    borderRadius: '10px',
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#fff',
+    cursor: 'pointer',
+  },
+  footer: {
+    marginTop: 'auto',
+    padding: '12px 16px',
+    background: 'var(--bg-primary)',
+    borderRadius: '8px',
+  },
+  footerHint: {
+    fontSize: '13px',
+    color: 'var(--text-muted)',
+  },
+  subInfo: {
     fontSize: '13px',
     color: 'var(--text-muted)',
   },

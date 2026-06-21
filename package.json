@@ -3,13 +3,53 @@
   "version": "1.0.0",
   "description": "医美初诊导诊桌面客户端",
   "main": "electron/main.js",
+  "productName": "医美初诊导诊系统",
+  "appId": "com.clinic.triage",
   "scripts": {
     "dev": "node scripts/dev-runner.js",
     "dev:web": "vite",
     "build": "tsc && vite build && electron-builder",
+    "build:web": "tsc && vite build",
+    "build:electron": "electron-builder",
     "preview": "vite preview",
     "start": "electron .",
     "electron:start": "electron ."
+  },
+  "build": {
+    "appId": "com.clinic.triage",
+    "productName": "医美初诊导诊系统",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "artifactName": "${productName}_Setup_${version}_${arch}.${ext}",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "医美初诊导诊系统"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "deb"
+    }
   },
   "dependencies": {
     "react": "^18.2.0",

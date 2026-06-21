@@ -8,9 +8,11 @@ interface TriageState {
   rooms: Room[]
   exceptions: ExceptionEvent[]
   selectedCustomerId: string | null
+  selectedExceptionId: string | null
   activePanel: 'today' | 'zones' | 'detail' | 'navigation' | 'exceptions'
 
   selectCustomer: (id: string | null) => void
+  selectException: (id: string | null) => void
   setActivePanel: (panel: TriageState['activePanel']) => void
 
   addCustomer: (data: Partial<Customer> & { name: string; phone: string }) => void
@@ -23,13 +25,14 @@ interface TriageState {
   markPhotoDone: (id: string) => void
   markTemporaryLeave: (id: string) => void
   returnFromLeave: (id: string) => void
-  reorderCustomers: (fromIndex: number, toIndex: number, zone?: WaitingZone) => void
+  reorderCustomers: (fromIndex: number, toIndex: number, context?: { zone?: WaitingZone; customerIds?: string[] }) => void
 
   resolveException: (id: string, notes?: string) => void
   addException: (event: Omit<ExceptionEvent, 'id' | 'createdAt' | 'resolved'>) => void
 
   getStaffById: (id: string) => Staff | undefined
   getRoomById: (id: string) => Room | undefined
+  getExceptionById: (id: string) => ExceptionEvent | undefined
   getCustomersByZone: (zone: WaitingZone) => Customer[]
   getCustomersByStatus: (status: CustomerStatus) => Customer[]
   getWaitingCustomers: () => Customer[]
@@ -45,9 +48,11 @@ export const useTriageStore = create<TriageState>((set, get) => ({
   rooms: [...mockRooms],
   exceptions: [...mockExceptions],
   selectedCustomerId: null,
+  selectedExceptionId: null,
   activePanel: 'today',
 
-  selectCustomer: (id) => set({ selectedCustomerId: id }),
+  selectCustomer: (id) => set({ selectedCustomerId: id, selectedExceptionId: null }),
+  selectException: (id) => set({ selectedExceptionId: id, selectedCustomerId: null }),
   setActivePanel: (panel) => set({ activePanel: panel }),
 
   addCustomer: (data) => {
@@ -162,11 +167,20 @@ export const useTriageStore = create<TriageState>((set, get) => ({
     })
   },
 
-  reorderCustomers: (fromIndex, toIndex, zone) => {
+  reorderCustomers: (fromIndex, toIndex, context) => {
     const allCustomers = [...get().customers]
+    const zone = context?.zone
+    const customerIds = context?.customerIds
 
     let targetList: Customer[]
-    if (zone) {
+
+    if (customerIds && customerIds.length > 0) {
+      targetList = customerIds
+        .map((id) => allCustomers.find((c) => c.id === id))
+        .filter((c): c is Customer =>
+          !!c && c.status !== 'completed' && c.status !== 'cancelled'
+        )
+    } else if (zone) {
       targetList = allCustomers
         .filter((c) => c.zone === zone && c.status !== 'completed' && c.status !== 'cancelled')
         .sort((a, b) => a.queueOrder - b.queueOrder)
@@ -216,6 +230,7 @@ export const useTriageStore = create<TriageState>((set, get) => ({
 
   getStaffById: (id) => get().staff.find((s) => s.id === id),
   getRoomById: (id) => get().rooms.find((r) => r.id === id),
+  getExceptionById: (id) => get().exceptions.find((e) => e.id === id),
 
   getCustomersByZone: (zone) =>
     get()

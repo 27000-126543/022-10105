@@ -62,6 +62,7 @@ export interface ExceptionEvent {
   type: 'timeout' | 'wrong_floor' | 'duplicate_checkin' | 'temporary_leave' | 'no_show'
   customerId: string
   customerName: string
+  customerPhone?: string
   createdAt: Date
   resolved: boolean
   resolvedAt?: Date

@@ -24,11 +24,13 @@ type FilterType = 'all' | ExceptionEvent['type'] | 'resolved' | 'active'
 export default function ExceptionPanel() {
   const exceptions = useTriageStore((s) => s.exceptions)
   const selectCustomer = useTriageStore((s) => s.selectCustomer)
+  const selectException = useTriageStore((s) => s.selectException)
   const setActivePanel = useTriageStore((s) => s.setActivePanel)
   const resolveException = useTriageStore((s) => s.resolveException)
   const addException = useTriageStore((s) => s.addException)
   const addCustomer = useTriageStore((s) => s.addCustomer)
   const customers = useTriageStore((s) => s.customers)
+  const getExceptionById = useTriageStore((s) => s.getExceptionById)
 
   const [filter, setFilter] = useState<FilterType>('all')
   const [resolveInput, setResolveInput] = useState<Record<string, string>>({})
@@ -57,8 +59,13 @@ export default function ExceptionPanel() {
     setResolveInput((prev) => ({ ...prev, [id]: '' }))
   }
 
-  const goToCustomer = (customerId: string) => {
-    selectCustomer(customerId)
+  const goToCustomer = (customerId: string, exceptionId?: string) => {
+    const customer = customers.find((c) => c.id === customerId)
+    if (customer) {
+      selectCustomer(customerId)
+    } else if (exceptionId) {
+      selectException(exceptionId)
+    }
     setActivePanel('detail')
   }
 
@@ -209,7 +216,7 @@ export default function ExceptionPanel() {
                     {typeLabels[e.type]}
                   </span>
                   <span
-                    onClick={() => goToCustomer(e.customerId)}
+                    onClick={() => goToCustomer(e.customerId, e.id)}
                     style={styles.eventCustomer}
                   >
                     👤 {e.customerName}
@@ -248,7 +255,7 @@ export default function ExceptionPanel() {
                   />
                   <button
                     style={styles.customerBtn}
-                    onClick={() => goToCustomer(e.customerId)}
+                    onClick={() => goToCustomer(e.customerId, e.id)}
                   >
                     查看顾客详情
                   </button>
@@ -445,6 +452,7 @@ export default function ExceptionPanel() {
                     type: 'duplicate_checkin',
                     customerId: targetId,
                     customerName: targetName,
+                    customerPhone: dupPhone,
                     details: dupDetails.trim() || '顾客疑似重复签到，请核实处理',
                     notes: '联系方式：' + dupPhone,
                   })

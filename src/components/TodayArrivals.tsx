@@ -80,14 +80,38 @@ export default function TodayArrivals() {
   }
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
+    const target = filteredCustomers[index]
+    if (!target) return
+    if (target.status === 'completed' || target.status === 'cancelled') return
     e.preventDefault()
     setDragOverIndex(index)
   }
 
   const handleDrop = (index: number) => {
-    if (draggedIndex !== null && draggedIndex !== index) {
-      reorderCustomers(draggedIndex, index)
+    const target = filteredCustomers[index]
+    if (draggedIndex === null || draggedIndex === index) {
+      setDraggedIndex(null)
+      setDragOverIndex(null)
+      return
     }
+    if (!target || target.status === 'completed' || target.status === 'cancelled') {
+      setDraggedIndex(null)
+      setDragOverIndex(null)
+      return
+    }
+
+    const visibleIds = filteredCustomers
+      .filter((c) => c.status !== 'completed' && c.status !== 'cancelled')
+      .map((c) => c.id)
+
+    const adjustedFrom = filteredCustomers.slice(0, draggedIndex).filter(
+      (c) => c.status !== 'completed' && c.status !== 'cancelled'
+    ).length
+    const adjustedTo = filteredCustomers.slice(0, index).filter(
+      (c) => c.status !== 'completed' && c.status !== 'cancelled'
+    ).length
+
+    reorderCustomers(adjustedFrom, adjustedTo, { customerIds: visibleIds })
     setDraggedIndex(null)
     setDragOverIndex(null)
   }
@@ -204,6 +228,9 @@ export default function TodayArrivals() {
                 ...(isSelected ? styles.queueRowSelected : {}),
                 ...(isDragging ? { opacity: 0.4 } : {}),
                 ...(isDragOver ? { background: 'rgba(239, 68, 68, 0.2)' } : {}),
+                ...(c.status === 'completed' || c.status === 'cancelled'
+                  ? { opacity: 0.6, cursor: 'default' }
+                  : { cursor: 'grab' }),
                 borderLeft: `4px solid ${getCustomerTypeColor(c.type)}`,
               }}
             >
