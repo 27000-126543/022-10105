@@ -35,6 +35,12 @@ export default function WaitingZones() {
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all')
 
+  const displayOrderMap = new Map<string, number>()
+  customers
+    .filter((c) => c.status !== 'completed' && c.status !== 'cancelled')
+    .sort((a, b) => a.queueOrder - b.queueOrder)
+    .forEach((c, i) => displayOrderMap.set(c.id, i + 1))
+
   const activeStatuses = ['skin_test', 'photo_room', 'consultation', 'injection_consult', 'treatment'] as const
 
   return (
@@ -126,7 +132,7 @@ export default function WaitingZones() {
                       <div style={styles.boardNextCard}>
                         <div style={styles.boardNextLeft}>
                           <span style={{ ...styles.boardQueueNum, background: getZoneColor(zone.key) }}>
-                            {generateQueueNumber(nextUp.type, nextUp.queueOrder)}
+                            {generateQueueNumber(nextUp.type, displayOrderMap.get(nextUp.id) || nextUp.queueOrder)}
                           </span>
                           <div>
                             <div style={styles.boardNextName}>{nextUp.name}</div>
@@ -160,7 +166,7 @@ export default function WaitingZones() {
                           <div key={c.id} style={styles.boardMiniItem}>
                             <span style={styles.boardMiniName}>{c.name}</span>
                             <span style={{ ...styles.boardMiniNum, background: getZoneColor(zone.key) }}>
-                              {generateQueueNumber(c.type, c.queueOrder)}
+                              {generateQueueNumber(c.type, displayOrderMap.get(c.id) || c.queueOrder)}
                             </span>
                           </div>
                         ))}

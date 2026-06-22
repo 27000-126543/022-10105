@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { ExceptionEvent } from '../types'
 import { useTriageStore } from '../store/triageStore'
 import { formatDateTime } from '../utils/format'
@@ -33,6 +33,7 @@ export default function ExceptionPanel() {
   const getExceptionById = useTriageStore((s) => s.getExceptionById)
 
   const [filter, setFilter] = useState<FilterType>('all')
+  const storeFilter = useTriageStore((s) => s.exceptionFilter)
   const [resolveInput, setResolveInput] = useState<Record<string, string>>({})
   const [showQuickReport, setShowQuickReport] = useState(false)
   const [showDupModal, setShowDupModal] = useState(false)
@@ -42,6 +43,13 @@ export default function ExceptionPanel() {
   const [dupDetails, setDupDetails] = useState('')
   const [dupError, setDupError] = useState('')
   const [dupMatched, setDupMatched] = useState<any>(null)
+
+  useEffect(() => {
+    if (storeFilter) {
+      setFilter(storeFilter as FilterType)
+      useTriageStore.setState({ exceptionFilter: null })
+    }
+  }, [storeFilter])
 
   const filtered = exceptions.filter((e) => {
     if (filter === 'all') return true

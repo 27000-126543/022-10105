@@ -165,6 +165,9 @@ export default function CustomerDetail() {
                 onClick={() => {
                   resolveException(exception.id, resolveNotes || '已核实处理')
                   setResolveNotes('')
+                  useTriageStore.setState({ exceptionFilter: 'resolved' })
+                  selectException(null)
+                  setActivePanel('exceptions')
                 }}
                 style={{ ...styles.actionBtn, background: '#10b981' }}
               >
@@ -199,6 +202,11 @@ export default function CustomerDetail() {
   const room = getRoomById(customer.roomId || '')
   const waitMinutes = getWaitMinutes(customer.waitStartAt || customer.arrivalTime)
 
+  const displayOrder = customers
+    .filter((c) => c.status !== 'completed' && c.status !== 'cancelled')
+    .sort((a, b) => a.queueOrder - b.queueOrder)
+    .findIndex((c) => c.id === customer.id) + 1
+
   const statuses: CustomerStatus[] = [
     'waiting',
     'skin_test',
@@ -222,7 +230,7 @@ export default function CustomerDetail() {
 ====================================
          医美导诊小票
 ====================================
-号：${generateQueueNumber(customer.type, customer.queueOrder)}
+号：${generateQueueNumber(customer.type, displayOrder || customer.queueOrder)}
 姓名：${customer.name}
 类型：${getCustomerTypeLabel(customer.type)}
 电话：${customer.phone}
@@ -280,7 +288,7 @@ export default function CustomerDetail() {
               <span style={styles.subText}>
                 队列号：
                 <span style={styles.queueNum}>
-                  {generateQueueNumber(customer.type, customer.queueOrder)}
+                  {generateQueueNumber(customer.type, displayOrder || customer.queueOrder)}
                 </span>
               </span>
               <span style={styles.subDivider}>·</span>
@@ -348,6 +356,9 @@ export default function CustomerDetail() {
                 onClick={() => {
                   resolveException(exception.id, resolveNotes || '已核实处理')
                   setResolveNotes('')
+                  useTriageStore.setState({ exceptionFilter: 'resolved' })
+                  selectException(null)
+                  setActivePanel('exceptions')
                 }}
                 style={{ ...styles.actionBtn, background: '#10b981', marginTop: '8px' }}
               >

@@ -10,6 +10,7 @@ interface TriageState {
   selectedCustomerId: string | null
   selectedExceptionId: string | null
   activePanel: 'today' | 'zones' | 'detail' | 'navigation' | 'exceptions'
+  exceptionFilter: string | null
 
   selectCustomer: (id: string | null) => void
   selectException: (id: string | null) => void
@@ -52,6 +53,7 @@ export const useTriageStore = create<TriageState>((set, get) => ({
   selectedCustomerId: null,
   selectedExceptionId: null,
   activePanel: 'today',
+  exceptionFilter: null,
 
   selectCustomer: (id) => set({ selectedCustomerId: id, selectedExceptionId: null }),
   selectException: (id) => set({ selectedExceptionId: id, selectedCustomerId: null }),
@@ -211,11 +213,15 @@ export const useTriageStore = create<TriageState>((set, get) => ({
     const allCustomers = get().customers
     const customerIds = context?.customerIds
 
-    const globalList = allCustomers
-      .filter((c) => c.status !== 'completed' && c.status !== 'cancelled')
-      .sort((a, b) => a.queueOrder - b.queueOrder)
+    const fullList = [...allCustomers].sort((a, b) => a.queueOrder - b.queueOrder)
 
-    if (globalList.length === 0) return
+    if (fullList.length === 0) return
+
+    const getInsertOrder = (idx: number): number => {
+      if (idx <= 0) return fullList[0].queueOrder - 1000
+      if (idx >= fullList.length) return fullList[fullList.length - 1].queueOrder + 1000
+      return (fullList[idx - 1].queueOrder + fullList[idx].queueOrder) / 2
+    }
 
     if (customerIds && customerIds.length > 0) {
       const draggedId = customerIds[fromIndex]
@@ -223,81 +229,72 @@ export const useTriageStore = create<TriageState>((set, get) => ({
 
       if (!draggedId || !targetId || draggedId === targetId) return
 
-      const dragGlobalIdx = globalList.findIndex((c) => c.id === draggedId)
-      let targetGlobalIdx = globalList.findIndex((c) => c.id === targetId)
+      const dragIdx = fullList.findIndex((c) => c.id === draggedId)
+      const targetIdx = fullList.findIndex((c) => c.id === targetId)
 
-      if (dragGlobalIdx === -1 || targetGlobalIdx === -1) return
+      if (dragIdx === -1 || targetIdx === -1) return
 
-      const [removed] = globalList.splice(dragGlobalIdx, 1)
-
-      targetGlobalIdx = globalList.findIndex((c) => c.id === targetId)
-      if (targetGlobalIdx === -1) targetGlobalIdx = globalList.length
-
-      globalList.splice(targetGlobalIdx, 0, removed)
-
-      const rangeStart = Math.min(dragGlobalIdx, targetGlobalIdx)
-      const rangeEnd = Math.max(dragGlobalIdx, targetGlobalIdx)
-
-      const updates = new Map<string, number>()
-      for (let i = rangeStart; i <= rangeEnd && i < globalList.length; i++) {
-        const c = globalList[i]
-        const newOrder = i + 1
-        if (c.queueOrder !== newOrder) {
-          updates.set(c.id, newOrder)
-        }
+      let insertIdx: number
+      if (fromIndex < toIndex) {
+        insertIdx = targetIdx + 1
+      } else {
+        insertIdx = targetIdx
       }
 
-      const updatedCustomers = allCustomers.map((c) => {
-        const newOrder = updates.get(c.id)
-        if (newOrder !== undefined) return { ...c, queueOrder: newOrder }
-        return c
-      })
+      const newOrder = getInsertOrder(insertIdx)
 
-      set({ customers: updatedCustomers })
+      set({
+        customers: allCustomers.map((c) =>
+          c.id === draggedId ? { ...c, queueOrder: newOrder } : c
+        ),
+      })
     } else if (context?.zone) {
       const zone = context.zone
-      const zoneList = globalList.filter((c) => c.zone === zone)
+      const zoneList = fullList.filter((c) => c.zone === zone)
 
       if (fromIndex < 0 || fromIndex >= zoneList.length || toIndex < 0 || toIndex >= zoneList.length) return
       if (fromIndex === toIndex) return
 
-      const dragGlobalIdx = globalList.findIndex((c) => c.id === zoneList[fromIndex].id)
-      let targetGlobalIdx = globalList.findIndex((c) => c.id === zoneList[toIndex].id)
+      const draggedId = zoneList[fromIndex].id
+      const targetId = zoneList[toIndex].id
 
-      const [removed] = globalList.splice(dragGlobalIdx, 1)
-      targetGlobalIdx = globalList.findIndex((c) => c.id === zoneList[toIndex].id)
-      if (targetGlobalIdx === -1) targetGlobalIdx = globalList.length
-      globalList.splice(targetGlobalIdx, 0, removed)
+      const dragIdx = fullList.findIndex((c) => c.id === draggedId)
+      const targetIdx = fullList.findIndex((c) => c.id === targetId)
 
-      const rangeStart = Math.min(dragGlobalIdx, targetGlobalIdx)
-      const rangeEnd = Math.max(dragGlobalIdx, targetGlobalIdx)
-
-      const updates = new Map<string, number>()
-      for (let i = rangeStart; i <= rangeEnd && i < globalList.length; i++) {
-        const c = globalList[i]
-        const newOrder = i + 1
-        if (c.queueOrder !== newOrder) updates.set(c.id, newOrder)
+      let insertIdx: number
+      if (fromIndex < toIndex) {
+        insertIdx = targetIdx + 1
+      } else {
+        insertIdx = targetIdx
       }
 
-      set({ customers: allCustomers.map((c) => updates.has(c.id) ? { ...c, queueOrder: updates.get(c.id)! } : c) })
+      const newOrder = getInsertOrder(insertIdx)
+
+      set({
+        customers: allCustomers.map((c) =>
+          c.id === draggedId ? { ...c, queueOrder: newOrder } : c
+        ),
+      })
     } else {
-      if (fromIndex < 0 || fromIndex >= globalList.length || toIndex < 0 || toIndex >= globalList.length) return
+      if (fromIndex < 0 || fromIndex >= fullList.length || toIndex < 0 || toIndex >= fullList.length) return
       if (fromIndex === toIndex) return
 
-      const [removed] = globalList.splice(fromIndex, 1)
-      globalList.splice(toIndex, 0, removed)
+      const draggedId = fullList[fromIndex].id
 
-      const rangeStart = Math.min(fromIndex, toIndex)
-      const rangeEnd = Math.max(fromIndex, toIndex)
-
-      const updates = new Map<string, number>()
-      for (let i = rangeStart; i <= rangeEnd; i++) {
-        const c = globalList[i]
-        const newOrder = i + 1
-        if (c.queueOrder !== newOrder) updates.set(c.id, newOrder)
+      let insertIdx: number
+      if (fromIndex < toIndex) {
+        insertIdx = toIndex + 1
+      } else {
+        insertIdx = toIndex
       }
 
-      set({ customers: allCustomers.map((c) => updates.has(c.id) ? { ...c, queueOrder: updates.get(c.id)! } : c) })
+      const newOrder = getInsertOrder(insertIdx)
+
+      set({
+        customers: allCustomers.map((c) =>
+          c.id === draggedId ? { ...c, queueOrder: newOrder } : c
+        ),
+      })
     }
   },
 

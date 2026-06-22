@@ -16,6 +16,7 @@ type FilterKey = 'all' | 'waiting' | 'active' | 'completed'
 
 export default function TodayArrivals() {
   const customers = useTriageStore((s) => s.customers)
+  const rooms = useTriageStore((s) => s.rooms)
   const selectedCustomerId = useTriageStore((s) => s.selectedCustomerId)
   const selectCustomer = useTriageStore((s) => s.selectCustomer)
   const setActivePanel = useTriageStore((s) => s.setActivePanel)
@@ -43,14 +44,22 @@ export default function TodayArrivals() {
     })
     .sort((a, b) => a.queueOrder - b.queueOrder)
 
+  const displayOrderMap = new Map<string, number>()
+  customers
+    .filter((c) => c.status !== 'completed' && c.status !== 'cancelled')
+    .sort((a, b) => a.queueOrder - b.queueOrder)
+    .forEach((c, i) => displayOrderMap.set(c.id, i + 1))
+
   const handlePrint = (c: Customer) => {
     const consultant = getStaffById(c.consultantId || '')
     const doctor = getStaffById(c.doctorId || '')
+    const room = rooms.find((r) => r.id === c.roomId)
+    const displayOrder = displayOrderMap.get(c.id) || c.queueOrder
     const ticket = `
 ====================================
          医美导诊小票
 ====================================
-号：${generateQueueNumber(c.type, c.queueOrder)}
+号：${generateQueueNumber(c.type, displayOrder)}
 姓名：${c.name}
 类型：${getCustomerTypeLabel(c.type)}
 电话：${c.phone}
@@ -60,7 +69,7 @@ export default function TodayArrivals() {
 咨询师：${consultant?.name || '-'}
 医生：${doctor?.name || '-'}
 ====================================
-当前状态：${getCustomerStatusLabel(c.status)}
+当前状态：${getCustomerStatusLabel(c.status)}${room ? '\n当前位置：' + room.name + ' ' + c.floor + '楼' + c.zone + '区' : ''}
 皮肤检测：${c.hasSkinTest ? '已完成' : '未完成'}
 拍照：${c.hasPhoto ? '已完成' : '未完成'}
 ====================================
@@ -210,6 +219,7 @@ export default function TodayArrivals() {
           const isSelected = selectedCustomerId === c.id
           const isDragging = draggedIndex === index
           const isDragOver = dragOverIndex === index && draggedIndex !== index
+          const displayOrder = displayOrderMap.get(c.id) || 0
 
           return (
             <div
@@ -235,7 +245,7 @@ export default function TodayArrivals() {
               }}
             >
               <div style={{ ...styles.queueCell, width: '60px' }}>
-                <span style={styles.orderNum}>{c.queueOrder}</span>
+                <span style={styles.orderNum}>{displayOrder}</span>
               </div>
               <div style={{ ...styles.queueCell, width: '80px' }}>
                 <span
@@ -244,7 +254,7 @@ export default function TodayArrivals() {
                     background: getZoneColor(c.zone),
                   }}
                 >
-                  {generateQueueNumber(c.type, c.queueOrder)}
+                  {generateQueueNumber(c.type, displayOrder)}
                 </span>
               </div>
               <div style={{ ...styles.queueCell, width: '100px' }}>

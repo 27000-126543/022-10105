@@ -51,6 +51,12 @@ export default function RoomNavigation() {
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all')
   const [assigningRoomId, setAssigningRoomId] = useState<string | null>(null)
 
+  const displayOrderMap = new Map<string, number>()
+  customers
+    .filter((c) => c.status !== 'completed' && c.status !== 'cancelled')
+    .sort((a, b) => a.queueOrder - b.queueOrder)
+    .forEach((c, i) => displayOrderMap.set(c.id, i + 1))
+
   const floors = [1, 2, 3]
 
   const filteredRooms =
@@ -71,7 +77,10 @@ export default function RoomNavigation() {
       c.status !== 'completed' &&
       c.status !== 'cancelled' &&
       (c.status === 'waiting' || c.status === 'called')
-  )
+  ).sort((a, b) => a.queueOrder - b.queueOrder)
+
+  const calledCustomers = assignableCustomers.filter((c) => c.status === 'called')
+  const waitingCustomers = assignableCustomers.filter((c) => c.status === 'waiting')
 
   const stats = {
     total: rooms.length,
@@ -132,6 +141,81 @@ export default function RoomNavigation() {
           ))}
         </div>
       </div>
+
+      {calledCustomers.length > 0 && (
+        <div style={styles.pendingSection}>
+          <div style={styles.pendingTitle}>📢 已叫号待安排 ({calledCustomers.length})</div>
+          <div style={styles.pendingList}>
+            {calledCustomers.map((c) => (
+              <div key={c.id} style={styles.pendingItem}>
+                <span style={{
+                  ...styles.pendingBadge,
+                  background: '#f59e0b20',
+                  color: '#f59e0b',
+                }}>
+                  已叫号
+                </span>
+                <span style={{
+                  ...styles.pendingNum,
+                  background: getCustomerTypeColor(c.type),
+                }}>
+                  {generateQueueNumber(c.type, displayOrderMap.get(c.id) || c.queueOrder)}
+                </span>
+                <span style={styles.pendingName}>{c.name}</span>
+                <span style={{
+                  ...styles.pendingType,
+                  background: getCustomerTypeColor(c.type),
+                }}>
+                  {getCustomerTypeLabel(c.type)}
+                </span>
+                <span style={styles.pendingZone}>
+                  {c.floor}F · {c.zone}区
+                </span>
+                <button
+                  style={styles.pendingDetailBtn}
+                  onClick={() => {
+                    selectCustomer(c.id)
+                    setActivePanel('detail')
+                  }}
+                >
+                  详情
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {waitingCustomers.length > 0 && (
+        <div style={styles.waitingSection}>
+          <div style={styles.waitingTitle}>📋 候诊中 ({waitingCustomers.length})</div>
+          <div style={styles.waitingList}>
+            {waitingCustomers.slice(0, 8).map((c) => (
+              <div key={c.id} style={styles.waitingItem}>
+                <span style={{
+                  ...styles.pendingNum,
+                  background: getCustomerTypeColor(c.type),
+                }}>
+                  {generateQueueNumber(c.type, displayOrderMap.get(c.id) || c.queueOrder)}
+                </span>
+                <span style={styles.pendingName}>{c.name}</span>
+                <span style={{
+                  ...styles.pendingType,
+                  background: getCustomerTypeColor(c.type),
+                }}>
+                  {getCustomerTypeLabel(c.type)}
+                </span>
+                <span style={styles.pendingZone}>
+                  {c.floor}F · {c.zone}区
+                </span>
+              </div>
+            ))}
+            {waitingCustomers.length > 8 && (
+              <span style={styles.waitingMore}>+{waitingCustomers.length - 8} 更多</span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div style={styles.floorGrid}>
         {Object.entries(groupedRooms)
@@ -236,7 +320,7 @@ export default function RoomNavigation() {
                                               </span>
                                               <span style={styles.assignItemName}>{c.name}</span>
                                               <span style={styles.assignItemNum}>
-                                                {generateQueueNumber(c.type, c.queueOrder)}
+                                                {generateQueueNumber(c.type, displayOrderMap.get(c.id) || c.queueOrder)}
                                               </span>
                                             </button>
                                           ))
@@ -589,6 +673,100 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '12px',
     color: 'var(--text-muted)',
     textAlign: 'center',
+  },
+  pendingSection: {
+    background: '#f59e0b10',
+    border: '1px solid #f59e0b30',
+    borderRadius: '10px',
+    padding: '12px 16px',
+  },
+  pendingTitle: {
+    fontSize: '14px',
+    fontWeight: 700,
+    color: '#f59e0b',
+    marginBottom: '10px',
+  },
+  pendingList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  pendingItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '8px 12px',
+    background: 'var(--bg-primary)',
+    borderRadius: '8px',
+  },
+  pendingBadge: {
+    padding: '2px 8px',
+    borderRadius: '4px',
+    fontSize: '11px',
+    fontWeight: 600,
+  },
+  pendingNum: {
+    padding: '2px 8px',
+    borderRadius: '4px',
+    fontSize: '11px',
+    fontWeight: 700,
+    color: 'white',
+  },
+  pendingName: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: 'var(--text-primary)',
+    flex: 1,
+  },
+  pendingType: {
+    padding: '2px 6px',
+    borderRadius: '3px',
+    fontSize: '10px',
+    fontWeight: 600,
+    color: 'white',
+  },
+  pendingZone: {
+    fontSize: '12px',
+    color: 'var(--text-muted)',
+  },
+  pendingDetailBtn: {
+    padding: '4px 10px',
+    background: 'var(--bg-tertiary)',
+    borderRadius: '4px',
+    fontSize: '11px',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    border: 'none',
+  },
+  waitingSection: {
+    background: 'var(--bg-secondary)',
+    borderRadius: '10px',
+    padding: '12px 16px',
+  },
+  waitingTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+    marginBottom: '10px',
+  },
+  waitingList: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    alignItems: 'center',
+  },
+  waitingItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '6px 10px',
+    background: 'var(--bg-primary)',
+    borderRadius: '6px',
+  },
+  waitingMore: {
+    fontSize: '12px',
+    color: 'var(--text-muted)',
+    padding: '6px 10px',
   },
   quickNav: {
     background: 'var(--bg-secondary)',
